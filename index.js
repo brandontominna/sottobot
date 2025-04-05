@@ -231,6 +231,16 @@ client.once('ready', async () => {
     console.log('Started refreshing application (/) commands.');
     
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    
+    // Clear existing commands first
+    console.log('Clearing existing application commands...');
+    await rest.put(
+      Routes.applicationCommands(client.user.id),
+      { body: [] }
+    );
+    
+    // Register new commands globally
+    console.log('Registering global application commands...');
     await rest.put(
       Routes.applicationCommands(client.user.id),
       { body: commands.map(command => command.toJSON()) },

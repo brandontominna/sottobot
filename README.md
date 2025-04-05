@@ -6,7 +6,7 @@ A Discord bot that automatically posts random emojis and phrases to a specified 
 
 Want to add this bot to your Discord server? Just follow these simple steps:
 
-1. **Add the bot to your server** using this link: [Add SottoBot to Discord](https://discord.com/oauth2/authorize?client_id=1357948511219613696&permissions=330816&integration_type=0&scope=bot)
+1. **Add the bot to your server** using this link: [Add SottoBot to Discord](https://discord.com/oauth2/authorize?client_id=1357948511219613696&permissions=330816&scope=bot%20applications.commands)
 
 2. **Set up the bot** in the channel where you want it to post:
    ```
