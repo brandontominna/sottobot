@@ -86,4 +86,4 @@ ISC
 
 ## Contributing
 
-Feel free to submit issues or pull requests if you have suggestions for improvements. 
+Feel free to submit issues or pull requests if you have suggestions for improvements.
