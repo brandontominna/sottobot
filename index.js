@@ -110,16 +110,35 @@ function getRandomEntry() {
 // Post a random entry to a specified Discord channel
 async function postRandomEntry(channel) {
   try {
+    // Check if channel exists
+    if (!channel) {
+      console.error('Channel is null or undefined');
+      return "Error: Unable to find the channel. Please try again in a server channel.";
+    }
+    
+    // Check if we have permissions to send messages
+    if (channel.guild && !channel.permissionsFor(channel.client.user).has('SendMessages')) {
+      console.error(`Missing permissions to send messages in ${channel.name}`);
+      return "Error: I don't have permission to send messages in this channel.";
+    }
+    
     const entry = getRandomEntry();
     if (!entry) {
       console.log('No entries found to post.');
-      return;
+      return "Error: No entries found to post.";
     }
     
-    await channel.send(entry.content);
-    console.log(`Posted ${entry.type}: ${entry.content} to ${channel.guild.name} / #${channel.name}`);
+    try {
+      await channel.send(entry.content);
+      console.log(`Posted ${entry.type}: ${entry.content} to ${channel.guild ? channel.guild.name + ' / #' + channel.name : 'DM'}`);
+      return "Success: Posted a random entry!";
+    } catch (error) {
+      console.error('Error sending message to channel:', error);
+      return `Error: ${error.message}`;
+    }
   } catch (error) {
-    console.error('Error posting to Discord:', error);
+    console.error('Error in postRandomEntry:', error);
+    return `Error: ${error.message}`;
   }
 }
 
@@ -145,6 +164,18 @@ async function displayAllContent(channel) {
   const data = loadContent();
   
   try {
+    // Check if channel exists
+    if (!channel) {
+      console.error('Channel is null or undefined');
+      return "Error: Unable to find the channel. Please try again in a server channel.";
+    }
+    
+    // Check if we have permissions to send messages
+    if (channel.guild && !channel.permissionsFor(channel.client.user).has('SendMessages')) {
+      console.error(`Missing permissions to send messages in ${channel.name}`);
+      return "Error: I don't have permission to send messages in this channel.";
+    }
+    
     // Create formatted message for Discord
     let message = '**SottoBot Content List: the following phrases and emojis will run every 30 minutes**\n\n';
     
@@ -159,11 +190,18 @@ async function displayAllContent(channel) {
     // Add help for emoji formatting
     message += '\n**Note about emojis:** Custom emojis must be in the format `<:name:id>` to display correctly. Use the `/emoji-list` command to see available emojis with their IDs.';
     
-    // Send to Discord
-    await channel.send(message);
-    console.log(`Content list sent to ${channel.guild.name} / #${channel.name}`);
+    try {
+      // Send to Discord
+      await channel.send(message);
+      console.log(`Content list sent to ${channel.guild ? channel.guild.name + ' / #' + channel.name : 'DM'}`);
+      return "Success: Content list sent!";
+    } catch (error) {
+      console.error('Error sending message to channel:', error);
+      return `Error: ${error.message}`;
+    }
   } catch (error) {
-    console.error('Error sending content list to Discord:', error);
+    console.error('Error in displayAllContent:', error);
+    return `Error: ${error.message}`;
   }
 }
 
@@ -281,6 +319,12 @@ client.on('interactionCreate', async interaction => {
 
   try {
     if (commandName === 'setup') {
+      // Only works in guilds, not DMs
+      if (!interaction.guild) {
+        await interaction.reply({ content: 'This command can only be used in a server, not in DMs.', ephemeral: true });
+        return;
+      }
+      
       // Only allow server administrators to set up the bot
       if (!interaction.member.permissions.has('ADMINISTRATOR')) {
         return interaction.reply({ content: 'Only administrators can set up the bot.', ephemeral: true });
@@ -295,11 +339,41 @@ client.on('interactionCreate', async interaction => {
         // Reply immediately so the command doesn't time out
         await interaction.reply({ content: 'Fetching content list...', ephemeral: true });
         
+        // For DMs, send the content directly to the user
+        if (!interaction.guild) {
+          const data = loadContent();
+          let message = '**SottoBot Content List**\n\n';
+          
+          if (data.entries.length === 0) {
+            message += 'No entries found.';
+          } else {
+            data.entries.forEach((entry, index) => {
+              message += `${index + 1}. [${entry.type}] ${entry.content}\n`;
+            });
+          }
+          
+          await interaction.followUp({ content: message, ephemeral: true });
+          return;
+        }
+        
+        // For servers, check permissions first
+        if (!interaction.channel.permissionsFor(client.user).has('SendMessages')) {
+          await interaction.followUp({ 
+            content: "I don't have permission to send messages in this channel. Please give me the 'Send Messages' permission or try in another channel.", 
+            ephemeral: true 
+          });
+          return;
+        }
+        
         // Then send the content list directly to the channel
-        await displayAllContent(interaction.channel);
+        const result = await displayAllContent(interaction.channel);
+        
+        if (result.startsWith('Error:')) {
+          await interaction.followUp({ content: result, ephemeral: true });
+        }
       } catch (error) {
         console.error('Error in list command:', error);
-        await interaction.followUp({ content: 'Error displaying content list.', ephemeral: true });
+        await interaction.followUp({ content: `Error displaying content list: ${error.message}`, ephemeral: true });
       }
     }
     else if (commandName === 'post') {
@@ -308,11 +382,26 @@ client.on('interactionCreate', async interaction => {
         // Reply immediately so the command doesn't time out
         await interaction.reply({ content: 'Posting a random entry...', ephemeral: true });
         
+        // DMs aren't supported for posting
+        if (!interaction.guild) {
+          await interaction.followUp({ content: 'Sorry, posting only works in servers, not in DMs.', ephemeral: true });
+          return;
+        }
+        
+        // Check permissions
+        if (!interaction.channel.permissionsFor(client.user).has('SendMessages')) {
+          await interaction.followUp({ 
+            content: "I don't have permission to send messages in this channel. Please give me the 'Send Messages' permission or try in another channel.", 
+            ephemeral: true 
+          });
+          return;
+        }
+        
         // Then post directly to the channel
         await postRandomEntry(interaction.channel);
       } catch (error) {
         console.error('Error in post command:', error);
-        await interaction.followUp({ content: 'Error posting random content.', ephemeral: true });
+        await interaction.followUp({ content: `Error posting random content: ${error.message}`, ephemeral: true });
       }
     }
     else if (commandName === 'ping') {
@@ -342,10 +431,28 @@ Use the \`/emoji-list\` command to see all available emojis with their IDs.
       try {
         await interaction.reply({ content: 'Fetching emoji list...', ephemeral: true });
         
+        // For DMs, explain this feature only works in servers
+        if (!interaction.guild) {
+          await interaction.followUp({ 
+            content: 'This command can only be used in a server, not in DMs. Server emojis are tied to specific servers.', 
+            ephemeral: true 
+          });
+          return;
+        }
+        
+        // Check permissions
+        if (!interaction.channel.permissionsFor(client.user).has('SendMessages')) {
+          await interaction.followUp({ 
+            content: "I don't have permission to send messages in this channel. Please give me the 'Send Messages' permission or try in another channel.", 
+            ephemeral: true 
+          });
+          return;
+        }
+        
         const emojiList = await getGuildEmojis(interaction.guild);
         
         if (emojiList.length === 0) {
-          await interaction.followUp('No custom emojis found in this server.');
+          await interaction.followUp({ content: 'No custom emojis found in this server.', ephemeral: true });
           return;
         }
         
@@ -354,40 +461,43 @@ Use the \`/emoji-list\` command to see all available emojis with their IDs.
           message += `• ${emoji.format} - \`${emoji.format}\`\n`;
         });
         
-        if (message.length > 2000) {
-          // Split into multiple messages if too long
-          const messages = [];
-          let currentMessage = '**Available Emojis**\n\n';
-          
-          for (const emoji of emojiList) {
-            const line = `• ${emoji.format} - \`${emoji.format}\`\n`;
+        try {
+          if (message.length > 2000) {
+            // Split into multiple messages if too long
+            const messages = [];
+            let currentMessage = '**Available Emojis**\n\n';
             
-            if (currentMessage.length + line.length > 1900) {
-              messages.push(currentMessage);
-              currentMessage = '**Available Emojis (Continued)**\n\n';
+            for (const emoji of emojiList) {
+              const line = `• ${emoji.format} - \`${emoji.format}\`\n`;
+              
+              if (currentMessage.length + line.length > 1900) {
+                messages.push(currentMessage);
+                currentMessage = '**Available Emojis (Continued)**\n\n';
+              }
+              
+              currentMessage += line;
             }
             
-            currentMessage += line;
+            if (currentMessage.length > 0) {
+              messages.push(currentMessage);
+            }
+            
+            for (const msg of messages) {
+              await interaction.channel.send(msg);
+            }
+            
+            await interaction.followUp({ content: 'Emoji list sent to channel!', ephemeral: true });
+          } else {
+            await interaction.channel.send(message);
+            await interaction.followUp({ content: 'Emoji list sent to channel!', ephemeral: true });
           }
-          
-          if (currentMessage.length > 0) {
-            messages.push(currentMessage);
-          }
-          
-          await interaction.channel.send(messages[0]);
-          
-          for (let i = 1; i < messages.length; i++) {
-            await interaction.channel.send(messages[i]);
-          }
-          
-          await interaction.followUp({ content: 'Emoji list sent to channel!', ephemeral: true });
-        } else {
-          await interaction.channel.send(message);
-          await interaction.followUp({ content: 'Emoji list sent to channel!', ephemeral: true });
+        } catch (error) {
+          console.error('Error sending emoji list to channel:', error);
+          await interaction.followUp({ content: `Error: ${error.message}`, ephemeral: true });
         }
       } catch (error) {
         console.error('Error in emoji-list command:', error);
-        await interaction.followUp({ content: 'Error displaying emoji list.', ephemeral: true });
+        await interaction.followUp({ content: `Error displaying emoji list: ${error.message}`, ephemeral: true });
       }
     }
     else if (commandName === 'add') {
@@ -396,6 +506,24 @@ Use the \`/emoji-list\` command to see all available emojis with their IDs.
         const content = interaction.options.getString('content');
         const type = interaction.options.getString('type');
         
+        // Handle empty content
+        if (!content || content.trim() === '') {
+          await interaction.reply({ content: 'Error: Content cannot be empty.', ephemeral: true });
+          return;
+        }
+        
+        // For emoji type, validate format
+        if (type === 'emoji') {
+          const emojiRegex = /<a?:[a-zA-Z0-9_]+:[0-9]+>/;
+          if (!emojiRegex.test(content)) {
+            await interaction.reply({ 
+              content: 'Error: Emoji format is invalid. Use `/emoji-list` to get the proper format. It should look like `<:name:123456789>`', 
+              ephemeral: true 
+            });
+            return;
+          }
+        }
+        
         // Add the new content
         addEntry(type, content);
         
@@ -403,7 +531,7 @@ Use the \`/emoji-list\` command to see all available emojis with their IDs.
         await interaction.reply({ content: `Added new ${type}: "${content}"`, ephemeral: true });
       } catch (error) {
         console.error('Error in add command:', error);
-        await interaction.reply({ content: 'Error adding content.', ephemeral: true });
+        await interaction.reply({ content: `Error adding content: ${error.message}`, ephemeral: true });
       }
     }
   } catch (error) {
