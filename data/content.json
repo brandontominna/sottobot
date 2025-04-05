@@ -22,31 +22,31 @@
     },
     {
       "type": "emoji",
-      "content": ":sottowow:"
+      "content": "<:sottowow:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":Sottoeyes:"
+      "content": "<:Sottoeyes:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":sottosleepy:"
+      "content": "<:sottosleepy:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":zpSottogroggy:"
+      "content": "<:zpSottogroggy:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":sottosip~1:"
+      "content": "<:sottosip~1:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":zpSottogiggle:"
+      "content": "<:zpSottogiggle:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":sottosip:"
+      "content": "<:sottosip:EMOJI_ID>"
     },
     {
       "type": "phrase",
@@ -82,7 +82,7 @@
     },
     {
       "type": "emoji",
-      "content": ":pensive:"
+      "content": "<:pensive:EMOJI_ID>"
     },
     {
       "type": "phrase",
@@ -94,15 +94,15 @@
     },
     {
       "type": "emoji",
-      "content": ":frogetrash:"
+      "content": "<:frogetrash:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":_frogemock:"
+      "content": "<:_frogemock:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":frogecroc:"
+      "content": "<:frogecroc:EMOJI_ID>"
     },
     {
       "type": "phrase",
@@ -122,11 +122,11 @@
     },
     {
       "type": "emoji",
-      "content": ":relieved:"
+      "content": "<:relieved:EMOJI_ID>"
     },
     {
       "type": "emoji",
-      "content": ":zp:"
+      "content": "<:zp:EMOJI_ID>"
     },
     {
       "type": "phrase",

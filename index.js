@@ -88,6 +88,11 @@ function saveContent(content) {
 // Add new content entry
 function addEntry(type, content) {
   const data = loadContent();
+  // If it's an emoji, make sure it's in the correct format
+  if (type === 'emoji' && !content.startsWith('<:') && !content.startsWith('<a:')) {
+    // This is a simple name format, warn about it in console
+    console.log(`Warning: Emoji "${content}" might not display correctly without ID. Format should be <:name:id>.`);
+  }
   data.entries.push({ type, content });
   saveContent(data);
 }
@@ -118,6 +123,23 @@ async function postRandomEntry(channel) {
   }
 }
 
+// Get a list of all custom emojis in a guild with their IDs
+async function getGuildEmojis(guild) {
+  try {
+    const emojis = await guild.emojis.fetch();
+    const emojiList = emojis.map(emoji => ({
+      name: emoji.name,
+      id: emoji.id,
+      animated: emoji.animated,
+      format: emoji.animated ? `<a:${emoji.name}:${emoji.id}>` : `<:${emoji.name}:${emoji.id}>`
+    }));
+    return emojiList;
+  } catch (error) {
+    console.error('Error fetching guild emojis:', error);
+    return [];
+  }
+}
+
 // Display all available content
 async function displayAllContent(channel) {
   const data = loadContent();
@@ -133,6 +155,9 @@ async function displayAllContent(channel) {
         message += `${index + 1}. [${entry.type}] ${entry.content}\n`;
       });
     }
+    
+    // Add help for emoji formatting
+    message += '\n**Note about emojis:** Custom emojis must be in the format `<:name:id>` to display correctly. Use the `/emoji-list` command to see available emojis with their IDs.';
     
     // Send to Discord
     await channel.send(message);
@@ -154,11 +179,8 @@ const commands = [
     .setName('post')
     .setDescription('Post a random phrase or emoji right now'),
   new SlashCommandBuilder()
-    .setName('help')
-    .setDescription('Show help information'),
-  new SlashCommandBuilder()
     .setName('add')
-    .setDescription('Add a new phrase to the bot')
+    .setDescription('Add a new phrase or emoji to the bot')
     .addStringOption(option => 
       option.setName('content')
         .setDescription('The phrase or emoji to add')
@@ -171,6 +193,12 @@ const commands = [
           { name: 'Phrase', value: 'phrase' },
           { name: 'Emoji', value: 'emoji' }
         )),
+  new SlashCommandBuilder()
+    .setName('emoji-list')
+    .setDescription('Display all available emojis with their IDs'),
+  new SlashCommandBuilder()
+    .setName('help')
+    .setDescription('Show help information'),
 ];
 
 // Schedule posting for all configured servers
@@ -267,9 +295,59 @@ client.on('interactionCreate', async interaction => {
 • \`/list\` - Display all phrases and emojis the bot can post
 • \`/post\` - Post a random phrase or emoji right now
 • \`/add\` - Add a new phrase or emoji to the bot
+• \`/emoji-list\` - Display all available emojis with their IDs
 • \`/help\` - Show this help message
+
+**About Emojis**
+Custom emojis must be in the format \`<:name:id>\` to display correctly.
+For example: \`<:smile:123456789>\`
+Use the \`/emoji-list\` command to see all available emojis with their IDs.
       `;
       interaction.reply(helpMessage);
+    }
+    else if (commandName === 'emoji-list') {
+      await interaction.deferReply();
+      
+      const emojiList = await getGuildEmojis(interaction.guild);
+      
+      if (emojiList.length === 0) {
+        await interaction.followUp('No custom emojis found in this server.');
+        return;
+      }
+      
+      let message = '**Available Emojis**\n\n';
+      emojiList.forEach(emoji => {
+        message += `• ${emoji.format} - \`${emoji.format}\`\n`;
+      });
+      
+      if (message.length > 2000) {
+        // Split into multiple messages if too long
+        const messages = [];
+        let currentMessage = '**Available Emojis**\n\n';
+        
+        for (const emoji of emojiList) {
+          const line = `• ${emoji.format} - \`${emoji.format}\`\n`;
+          
+          if (currentMessage.length + line.length > 1900) {
+            messages.push(currentMessage);
+            currentMessage = '**Available Emojis (Continued)**\n\n';
+          }
+          
+          currentMessage += line;
+        }
+        
+        if (currentMessage.length > 0) {
+          messages.push(currentMessage);
+        }
+        
+        await interaction.followUp(messages[0]);
+        
+        for (let i = 1; i < messages.length; i++) {
+          await interaction.channel.send(messages[i]);
+        }
+      } else {
+        await interaction.followUp(message);
+      }
     }
     else if (commandName === 'add') {
       const content = interaction.options.getString('content');
