@@ -167,7 +167,7 @@ async function displayAllContent(channel) {
   }
 }
 
-// Define slash commands
+// Register slash commands
 const commands = [
   new SlashCommandBuilder()
     .setName('setup')
@@ -196,6 +196,9 @@ const commands = [
   new SlashCommandBuilder()
     .setName('emoji-list')
     .setDescription('Display all available emojis with their IDs'),
+  new SlashCommandBuilder()
+    .setName('ping')
+    .setDescription('Simple command to test if slash commands are working'),
   new SlashCommandBuilder()
     .setName('help')
     .setDescription('Show help information'),
@@ -272,6 +275,8 @@ client.once('ready', async () => {
 client.on('interactionCreate', async interaction => {
   if (!interaction.isCommand()) return;
 
+  console.log(`Command received: ${interaction.commandName} from ${interaction.user.tag} in ${interaction.guild?.name || 'DM'}`);
+
   const { commandName } = interaction;
 
   try {
@@ -282,20 +287,36 @@ client.on('interactionCreate', async interaction => {
       }
       
       configureServer(interaction.guildId, interaction.channelId);
-      interaction.reply(`Bot configured to post in <#${interaction.channelId}>. It will post random messages every 30 minutes!`);
+      await interaction.reply(`Bot configured to post in <#${interaction.channelId}>. It will post random messages every 30 minutes!`);
     } 
     else if (commandName === 'list') {
-      // Defer the reply since displaying content might take a moment
-      await interaction.deferReply();
-      displayAllContent(interaction.channel);
-      
-      // Follow up with a simple message since displayAllContent already sends a message
-      await interaction.followUp({ content: 'Content list sent to this channel!', ephemeral: true });
+      console.log('Executing list command...');
+      try {
+        // Reply immediately so the command doesn't time out
+        await interaction.reply({ content: 'Fetching content list...', ephemeral: true });
+        
+        // Then send the content list directly to the channel
+        await displayAllContent(interaction.channel);
+      } catch (error) {
+        console.error('Error in list command:', error);
+        await interaction.followUp({ content: 'Error displaying content list.', ephemeral: true });
+      }
     }
     else if (commandName === 'post') {
-      await interaction.deferReply();
-      await postRandomEntry(interaction.channel);
-      await interaction.followUp({ content: 'Posted a random entry!', ephemeral: true });
+      console.log('Executing post command...');
+      try {
+        // Reply immediately so the command doesn't time out
+        await interaction.reply({ content: 'Posting a random entry...', ephemeral: true });
+        
+        // Then post directly to the channel
+        await postRandomEntry(interaction.channel);
+      } catch (error) {
+        console.error('Error in post command:', error);
+        await interaction.followUp({ content: 'Error posting random content.', ephemeral: true });
+      }
+    }
+    else if (commandName === 'ping') {
+      await interaction.reply({ content: 'Pong! Slash commands are working!', ephemeral: true });
     }
     else if (commandName === 'help') {
       const helpMessage = `
@@ -306,6 +327,7 @@ client.on('interactionCreate', async interaction => {
 • \`/post\` - Post a random phrase or emoji right now
 • \`/add\` - Add a new phrase or emoji to the bot
 • \`/emoji-list\` - Display all available emojis with their IDs
+• \`/ping\` - Check if slash commands are working
 • \`/help\` - Show this help message
 
 **About Emojis**
@@ -313,61 +335,76 @@ Custom emojis must be in the format \`<:name:id>\` to display correctly.
 For example: \`<:smile:123456789>\`
 Use the \`/emoji-list\` command to see all available emojis with their IDs.
       `;
-      interaction.reply(helpMessage);
+      await interaction.reply(helpMessage);
     }
     else if (commandName === 'emoji-list') {
-      await interaction.deferReply();
-      
-      const emojiList = await getGuildEmojis(interaction.guild);
-      
-      if (emojiList.length === 0) {
-        await interaction.followUp('No custom emojis found in this server.');
-        return;
-      }
-      
-      let message = '**Available Emojis**\n\n';
-      emojiList.forEach(emoji => {
-        message += `• ${emoji.format} - \`${emoji.format}\`\n`;
-      });
-      
-      if (message.length > 2000) {
-        // Split into multiple messages if too long
-        const messages = [];
-        let currentMessage = '**Available Emojis**\n\n';
+      console.log('Executing emoji-list command...');
+      try {
+        await interaction.reply({ content: 'Fetching emoji list...', ephemeral: true });
         
-        for (const emoji of emojiList) {
-          const line = `• ${emoji.format} - \`${emoji.format}\`\n`;
+        const emojiList = await getGuildEmojis(interaction.guild);
+        
+        if (emojiList.length === 0) {
+          await interaction.followUp('No custom emojis found in this server.');
+          return;
+        }
+        
+        let message = '**Available Emojis**\n\n';
+        emojiList.forEach(emoji => {
+          message += `• ${emoji.format} - \`${emoji.format}\`\n`;
+        });
+        
+        if (message.length > 2000) {
+          // Split into multiple messages if too long
+          const messages = [];
+          let currentMessage = '**Available Emojis**\n\n';
           
-          if (currentMessage.length + line.length > 1900) {
-            messages.push(currentMessage);
-            currentMessage = '**Available Emojis (Continued)**\n\n';
+          for (const emoji of emojiList) {
+            const line = `• ${emoji.format} - \`${emoji.format}\`\n`;
+            
+            if (currentMessage.length + line.length > 1900) {
+              messages.push(currentMessage);
+              currentMessage = '**Available Emojis (Continued)**\n\n';
+            }
+            
+            currentMessage += line;
           }
           
-          currentMessage += line;
+          if (currentMessage.length > 0) {
+            messages.push(currentMessage);
+          }
+          
+          await interaction.channel.send(messages[0]);
+          
+          for (let i = 1; i < messages.length; i++) {
+            await interaction.channel.send(messages[i]);
+          }
+          
+          await interaction.followUp({ content: 'Emoji list sent to channel!', ephemeral: true });
+        } else {
+          await interaction.channel.send(message);
+          await interaction.followUp({ content: 'Emoji list sent to channel!', ephemeral: true });
         }
-        
-        if (currentMessage.length > 0) {
-          messages.push(currentMessage);
-        }
-        
-        await interaction.followUp(messages[0]);
-        
-        for (let i = 1; i < messages.length; i++) {
-          await interaction.channel.send(messages[i]);
-        }
-      } else {
-        await interaction.followUp(message);
+      } catch (error) {
+        console.error('Error in emoji-list command:', error);
+        await interaction.followUp({ content: 'Error displaying emoji list.', ephemeral: true });
       }
     }
     else if (commandName === 'add') {
-      const content = interaction.options.getString('content');
-      const type = interaction.options.getString('type');
-      
-      // Add the new content
-      addEntry(type, content);
-      
-      // Confirm to the user
-      interaction.reply({ content: `Added new ${type}: "${content}"`, ephemeral: true });
+      console.log('Executing add command...');
+      try {
+        const content = interaction.options.getString('content');
+        const type = interaction.options.getString('type');
+        
+        // Add the new content
+        addEntry(type, content);
+        
+        // Confirm to the user
+        await interaction.reply({ content: `Added new ${type}: "${content}"`, ephemeral: true });
+      } catch (error) {
+        console.error('Error in add command:', error);
+        await interaction.reply({ content: 'Error adding content.', ephemeral: true });
+      }
     }
   } catch (error) {
     console.error(`Error handling command ${commandName}:`, error);
